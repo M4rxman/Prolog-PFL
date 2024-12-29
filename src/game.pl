@@ -91,8 +91,6 @@ get_next_move(GameState, Moves, Move) :-
 % Ask the human for a move
 % ask_human_for_move(+Moves, -Move): Prompts the human player to choose a move.
 ask_human_for_move(Moves, Move) :-
-    write('Your valid moves are:'),nl,
-    write(Moves),nl,
     write('Choose your move:'),nl,
     read(Move),
     (   member(Move, Moves)
@@ -208,11 +206,21 @@ move(GameState, place(Player, Size, X, Y), NewGameState) :-
     % Validate the move
     within_board(X, Y, Board),
     valid_placement(Board, X, Y,Size),
-    update_board(Board, X, Y, (Player, Size), NewBoard),
+    place_pipe(Board, X, Y, (Player, Size), NewBoard),
     update_pipes(RemainingPipes, Player, Size, UpdatedPipes),
     switch_player(Player, NextPlayer),
     NewGameState = game_state(NewBoard, NextPlayer, UpdatedPipes).
 
+move(GameState,  transfer(Player, Size, FromX, FromY, ToX, ToY), NewGameState) :-
+    GameState = game_state(Board, CurrentPlayer, RemainingPipes),
+    CurrentPlayer = Player,
+    % Validate the move
+    within_board(FromX, FromY, Board),
+    within_board(ToX, ToY, Board),
+    valid_transfer(Board,CurrentPlayer, FromX, FromY, ToX, ToY, Size),
+    transfer_pipe(Board, FromX, FromY, ToX, ToY, (Player, Size), NewBoard),
+    switch_player(Player, NextPlayer),
+    NewGameState = game_state(NewBoard, NextPlayer, RemainingPipes).
 % Checks if coordinates are within the board
 % within_board(+X, +Y, +Board): Ensures the coordinates are valid for the board.
 within_board(X, Y, Board) :-
@@ -234,15 +242,47 @@ valid_placement(Board, X, Y, Size) :-
     \+ member((_, Size), Cell), % Não permite tubos do mesmo tamanho
     length(Cell, Count), Count < 3. % Célula pode ter no máximo 3 tubos
 
+% Check if a trasnfer is valid
+valid_transfer(Board,Player, FromX, FromY, ToX, ToY, Size) :-
+    nth1(FromY, Board, FromRow),
+    nth1(FromX, FromRow, FromCell),
+    nth1(ToY, Board, ToRow),
+    nth1(ToX, ToRow, ToCell),
+    member((Player, Size), FromCell), % Ensure the pipe of the given size is in the FromCell and belongs to the player
+    \+member((_, Size), ToCell), % Ensure the pipe of the given size is not in the ToCell
+    length(ToCell, Count), Count < 3, % Ensure the ToCell can accept another pipe
+    player_has_played_all_sizes(Player, Board). % Ensure the player has played a pipe of each size
+
+% Checks if the player has played a pipe of each size
+player_has_played_all_sizes(Player, Board) :-
+    \+ (member(Size, [small, medium, large]),
+        \+ (member(Row, Board),
+            member(Cell, Row),
+             Cell \= [],
+           member((Player, Size), Cell))).
+
 % Updates the board with a new pipe
 % update_board(+Board, +X, +Y, +Pipe, -NewBoard): Places a pipe on the board.
-update_board(Board, X, Y, Pipe, NewBoard) :-
+place_pipe(Board, X, Y, Pipe, NewBoard) :-
     nth1(Y, Board, Row, RestRows),
     nth1(X, Row, Cell, RestCells),
     append(Cell, [Pipe], NewCell),
     nth1(X, NewRow, NewCell, RestCells),
     nth1(Y, NewBoard, NewRow, RestRows).
-    
+
+% Move a pipe from one cell to another
+transfer_pipe(Board, FromX, FromY, ToX, ToY, Pipe, NewBoard) :-
+    nth1(FromY, Board, FromRow, RestRows1),
+    nth1(FromX, FromRow, FromCell, RestCells1),
+    delete(FromCell, Pipe, NewFromCell),
+    nth1(FromX, NewFromRow, NewFromCell, RestCells1),
+    nth1(FromY, TempBoard, NewFromRow, RestRows1),
+    nth1(ToY, TempBoard, ToRow, RestRows2),
+    nth1(ToX, ToRow, ToCell, RestCells2),
+    append(ToCell, [Pipe], NewToCell),
+    nth1(ToX, NewToRow, NewToCell, RestCells2),
+    nth1(ToY, NewBoard, NewToRow, RestRows2).
+  
 % Updates the remaining pipes after a move
 % update_pipes(+RemainingPipes, +Player, +Size, -UpdatedPipes): Reduces the count of a specific pipe size for the given player.
 update_pipes(RemainingPipes, Player, Size, UpdatedPipes) :-
@@ -266,7 +306,14 @@ valid_moves(game_state(Board, CurrentPlayer, RemainingPipes), ListOfMoves) :-
             within_board(X, Y, Board),
             valid_placement(Board, X, Y, Size)
         ),
-        ListOfMoves).
+        PlaceMoves),
+    findall(transfer(CurrentPlayer, Size, FromX, FromY, ToX, ToY),
+        (   within_board(FromX, FromY, Board),
+            within_board(ToX, ToY, Board),
+            valid_transfer(Board,CurrentPlayer, FromX, FromY, ToX, ToY, Size)
+        ),
+        TransferMoves),
+    append(PlaceMoves, TransferMoves, ListOfMoves).
 
 % choose_move(+GameState, +Level, -Move): Chooses the best move for the AI based on the difficulty level.
 
