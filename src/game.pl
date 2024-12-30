@@ -2,6 +2,7 @@
 :- use_module(library(lists)).
 :- use_module(library(clpfd)). % For transpose and other list predicates.
 :-use_module(library(between)).
+:- use_module(library(random)).
 
 % Define ANSI escape codes
 ansi_format(Style, Text) :-
@@ -24,7 +25,7 @@ play :-
     display_menu,
     read_config(GameConfig),
     initial_state(GameConfig, GameState),
-    game_loop(GameState).
+    game_loop(GameState, GameConfig).
 
 % Displays the game menu
 % display_menu/0: Prints the main game menu options.
@@ -32,8 +33,7 @@ display_menu :-
 write('Welcome to Aqua Pipe!'), nl,
     write('1. Human vs Human (H/H)'), nl,
     write('2. Human vs Computer (H/PC)'), nl,
-    write('3. Computer vs Human (PC/H)'), nl,
-    write('4. Computer vs Computer (PC/PC)'), nl,
+    write('3. Computer vs Computer (PC/PC)'), nl,
     write('Choose an option (1-4):'), nl.
 
 % Reads the game configuration from the user
@@ -47,12 +47,11 @@ read_config(GameConfig) :-
 % get_game_type(+Option, -GameType): Maps user input to a specific game type.
 get_game_type(1, h_h).
 get_game_type(2, h_pc).
-get_game_type(3, pc_h).
-get_game_type(4, pc_pc).
+get_game_type(3, pc_pc).
 
 % Main game loop
 % game_loop(+GameState): Executes the game loop, displaying the state and handling moves until the game ends.
-game_loop(GameState) :-
+game_loop(GameState, GameConfig) :-
     display_game(GameState),
     (   game_over(GameState, Winner)
     ->  announce_winner(Winner)
@@ -60,11 +59,11 @@ game_loop(GameState) :-
         write('ok1'),
         valid_moves(GameState, Moves),
         write('ok2'),
-        get_next_move(GameState, Moves, Move),
+        get_next_move(GameConfig, GameState, Moves, Move),
         write('ok3'),
         move(GameState, Move, NewGameState),
         write('ok4'),
-        game_loop(NewGameState)
+        game_loop(NewGameState , GameConfig)
     ).
 
 % Announces the winner or draw
@@ -76,17 +75,21 @@ announce_winner(Winner) :-
     ).
 
 % Determines the next move
-% get_next_move(+GameState, +Moves, -Move): Determines the next move for the current player.
-get_next_move(GameState, Moves, Move) :-
-    GameState = game_state(_, Player, _,_),
-    write('Im here'),
-    (   (GameType = h_h, CurrentPlayer = player1)
-    ;   (GameType = h_h, CurrentPlayer = player2)
-    ;   (GameType = h_pc, CurrentPlayer = player1)
-    ;   (GameType = pc_h, CurrentPlayer = player2)
+% get_next_move(+GameConfig, +GameState, +Moves, -Move): Determines the next move for the current player.
+get_next_move(GameConfig, GameState, Moves, Move) :-
+    GameConfig = game_config(type(GameType), _, _),
+    GameState = game_state(_, Player, _, _),
+    (   (GameType = h_h)  % Human vs Human
+    ;   (GameType = h_pc, Player = player1)  % Human vs PC, Human's turn
     )
-    ->  ask_human_for_move(Moves, Move)
-    ;  write('Player not human').
+    ->  ask_human_for_move(Moves, Move)   % Human player's turn
+    ;   ask_pc_for_move(Moves, Move).     % PC player's turn
+
+
+% Ask the computer for a move
+% ask_pc_for_move(+Moves, -Move): Chooses a move for the computer player.
+ask_pc_for_move(Moves, Move) :-
+        random_member(Move, Moves).
 
 % Ask the human for a move
 % ask_human_for_move(+Moves, -Move): Prompts the human player to choose a move.
