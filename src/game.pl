@@ -78,7 +78,7 @@ announce_winner(Winner) :-
 % Determines the next move
 % get_next_move(+GameState, +Moves, -Move): Determines the next move for the current player.
 get_next_move(GameState, Moves, Move) :-
-    GameState = game_state(_, Player, _),
+    GameState = game_state(_, Player, _,_),
     write('Im here'),
     (   (GameType = h_h, CurrentPlayer = player1)
     ;   (GameType = h_h, CurrentPlayer = player2)
@@ -101,11 +101,12 @@ ask_human_for_move(Moves, Move) :-
 
 % Initialize the game state
 % initial_state(+GameConfig, -GameState): Creates the initial game state based on the configuration.
-initial_state(GameConfig, game_state(Board, player1, RemainingPipes)) :-
+initial_state(GameConfig, game_state(Board, player1, RemainingPipes, SetsOfThree)) :-
     GameConfig = game_config(_, board_size(BoardSize), _),
     create_empty_board(BoardSize, Board),
     NumberOfPipes is BoardSize + 2,
-    RemainingPipes = [player1: [small-NumberOfPipes, medium-NumberOfPipes, large-NumberOfPipes], player2: [small-NumberOfPipes, medium-NumberOfPipes, large-NumberOfPipes]].
+    RemainingPipes = [player1: [small-NumberOfPipes, medium-NumberOfPipes, large-NumberOfPipes], player2: [small-NumberOfPipes, medium-NumberOfPipes, large-NumberOfPipes]],
+    SetsOfThree = [player1-0, player2-0].
 
 % Create an empty board
 % create_empty_board(+Size, -Board): Generates an empty NxN board.
@@ -116,11 +117,19 @@ create_empty_board(Size, Board) :-
 
 % Displays the current game state
 % display_game(+GameState): Prints the board and the current player to the terminal.
-display_game(game_state(Board, CurrentPlayer, _)) :-
+display_game(game_state(Board, CurrentPlayer, RemainingPipes,SetsOfThree)) :-
+    member(player1:Pipes1, RemainingPipes),
+    member(player2:Pipes2, RemainingPipes),
+    format('Player 1 remaining pipes: ~w~n', [Pipes1]),
+    format('Player 2 remaining pipes: ~w~n', [Pipes2]),
     nl, write('Current Board:'),nl,
     length(Board, Size),
     print_board(Board, Size),
     print_coordinates(Size),
+    member(player1-Sets1, SetsOfThree),
+    member(player2-Sets2, SetsOfThree),
+    format('Player 1 sets of three: ~w~n', [Sets1]),
+    format('Player 2 sets of three: ~w~n', [Sets2]),
     format('~nPlayer ~w\'s turn.~n', [CurrentPlayer]).
 
 % Prints the board row by row
@@ -155,17 +164,28 @@ print_row([Cell|Rest]) :-
 % Prints pipes within a cell
 % print_pipes(+Cell): Displays pipes of all sizes in a cell.
 print_pipes(Cell) :-
-    member((Player, Size), Cell),
-    pipe_symbol(Size, Symbol),
-    player_color(Player, Color),
-    format('~w~w\e[0m', [Color, Symbol]), % Reset color after symbol
-    fail; true.
+    member((Player, small), Cell),
+    pipe_symbol(small, SmallSymbol),
+    player_color(Player, SmallColor),
+    format('~w~w\e[0m', [SmallColor, SmallSymbol]), % Reset color after symbol
+    fail;
+    member((Player, medium), Cell),
+    pipe_symbol(medium, MediumSymbol),
+    player_color(Player, MediumColor),
+    format('~w~w\e[0m', [MediumColor, MediumSymbol]), % Reset color after symbol
+    fail;
+    member((Player, large), Cell),
+    pipe_symbol(large, LargeSymbol),
+    player_color(Player, LargeColor),
+    format('~w~w\e[0m', [LargeColor, LargeSymbol]), % Reset color after symbol
+    fail;
+    true.
 
 % Determines the symbol for a pipe size
 % pipe_symbol(+Size, -Symbol): Maps a pipe size to its symbol.
-pipe_symbol(small, 'º').
-pipe_symbol(medium, 'o').
-pipe_symbol(large, 'O').
+pipe_symbol(small, 'o').
+pipe_symbol(medium, 'O').
+pipe_symbol(large, '()').
 
 % Determines the color for a player
 
@@ -202,26 +222,28 @@ print_cells([Cell | Rest]) :-
 % Executes a move
 % move(+GameState, +Move, -NewGameState): Validates and executes a move, updating the game state.
 move(GameState, place(Player, Size, X, Y), NewGameState) :-
-    GameState = game_state(Board, CurrentPlayer, RemainingPipes),
+    GameState = game_state(Board, CurrentPlayer, RemainingPipes,SetsOfThree),
     CurrentPlayer = Player,
     % Validate the move
     within_board(X, Y, Board),
     valid_placement(Board, X, Y,Size),
     place_pipe(Board, X, Y, (Player, Size), NewBoard),
     update_pipes(RemainingPipes, Player, Size, UpdatedPipes),
+    update_sets_of_three(SetsOfThree, NewBoard , UpdatedSetsOfThree),
     switch_player(Player, NextPlayer),
-    NewGameState = game_state(NewBoard, NextPlayer, UpdatedPipes).
+    NewGameState = game_state(NewBoard, NextPlayer, UpdatedPipes, UpdatedSetsOfThree).
 
 move(GameState,  transfer(Player, Size, FromX, FromY, ToX, ToY), NewGameState) :-
-    GameState = game_state(Board, CurrentPlayer, RemainingPipes),
+    GameState = game_state(Board, CurrentPlayer, RemainingPipes,SetsOfThree),
     CurrentPlayer = Player,
     % Validate the move
     within_board(FromX, FromY, Board),
     within_board(ToX, ToY, Board),
     valid_transfer(Board,CurrentPlayer, FromX, FromY, ToX, ToY, Size),
     transfer_pipe(Board, FromX, FromY, ToX, ToY, (Player, Size), NewBoard),
+    update_sets_of_three(SetsOfThree, NewBoard, UpdatedSetsOfThree),
     switch_player(Player, NextPlayer),
-    NewGameState = game_state(NewBoard, NextPlayer, RemainingPipes).
+    NewGameState = game_state(NewBoard, NextPlayer, RemainingPipes,UpdatedSetsOfThree).
 % Checks if coordinates are within the board
 % within_board(+X, +Y, +Board): Ensures the coordinates are valid for the board.
 within_board(X, Y, Board) :-
@@ -299,7 +321,7 @@ switch_player(player1, player2).
 switch_player(player2, player1).
 
 % valid_moves(+GameState, -ListOfMoves): Generates a list of all valid moves for the current player.
-valid_moves(game_state(Board, CurrentPlayer, RemainingPipes), ListOfMoves) :-
+valid_moves(game_state(Board, CurrentPlayer, RemainingPipes,_), ListOfMoves) :-
     findall(place(CurrentPlayer, Size, X, Y),
         (   member(CurrentPlayer:Pipes, RemainingPipes),
             member(Size-Count, Pipes),
@@ -320,10 +342,10 @@ valid_moves(game_state(Board, CurrentPlayer, RemainingPipes), ListOfMoves) :-
 
 
 % game_over(+GameState, -Winner): Checks if the game has ended and determines the winner or if it's a draw.
-game_over(game_state(Board, _, _), Winner) :-
-    (   check_victory(Board, player1)
+game_over(game_state(Board, _, _, SetsOfThree), Winner) :-
+    (   check_victory(Board, player1, SetsOfThree)
     ->  Winner = player1
-    ;   check_victory(Board, player2)
+    ;   check_victory(Board, player2, SetsOfThree)
     ->  Winner = player2
     ;   board_full(Board)
     ->  Winner = draw
@@ -331,10 +353,10 @@ game_over(game_state(Board, _, _), Winner) :-
     ).
 
 % check_victory(+Board, +Player): Checks if the given player has achieved a victory condition.
-check_victory(Board, Player) :-
+check_victory(Board, Player,SetsOfThree) :-
     check_four_in_a_row(Board, Player);
-    check_four_sets_of_three(Board, Player).
-
+    member(Player-Count, SetsOfThree),
+    Count >= 4.
     % Checks if the board is full
     % board_full(+Board): Succeeds if there are no empty cells on the board.
     board_full(Board) :-
@@ -376,79 +398,64 @@ check_diagonals(Board, Player, Size) :-
     member((Player, Size), Cell3),
     member((Player, Size), Cell4).
 
-% check_four_sets_of_three(+Board, +Player): Checks if the player has four sets of three in a row.
-% Check for four sets of three pipes in-a-row of the same size
-check_four_sets_of_three(Board, Player) :-
-    findall((X, Y, Size), check_three_in_a_row(Board, Player, X, Y, Size), Sets),
-    length(Sets, Count),
-    Count >= 4.
+
+% Updates the sets of three after a move
+% update_sets_of_three(+Board, +SetsOfThree, -UpdatedSetsOfThree): Updates the count of sets of three for both players.
+update_sets_of_three(SetsOfThree, Board, UpdatedSetsOfThree) :-
+    count_sets_of_three(Board, player1, Count1),
+    count_sets_of_three(Board, player2, Count2),
+    UpdatedSetsOfThree = [player1-Count1, player2-Count2].
+
+% count_sets_of_three(+Board, +Player, -Count)
+count_sets_of_three(Board, Player,Count) :-
+    findall(Size, check_three_in_a_row(Board, Player, Size), Sets),
+    length(Sets, Count).
 
 % Check if three pipes of the same size form a row/column/diagonal
-check_three_in_a_row(Board, Player, X, Y, Size) :-
+check_three_in_a_row(Board, Player, Size) :-
     member(Size, [small, medium, large]),
-    (   check_three_in_row(Board, Player, Size, X, Y);
-        check_three_in_column(Board, Player, Size, X, Y);
-        check_three_in_diagonal(Board, Player, Size, X, Y)
+    (   check_three_in_row(Board, Player, Size);
+        check_three_in_column(Board, Player, Size);
+        check_three_in_diagonal(Board, Player, Size)
     ).
 
-% Row Check (Fix: Ensure strict size matching in consecutive cells)
-check_three_in_row(Board, Player, Size, X, Y) :-
-    nth1(Y, Board, Row),
-    append(_, [Cell1, Cell2, Cell3 | _], Row),
-    member((Player, Size), Cell1),
-    member((Player, Size), Cell2),
-    member((Player, Size), Cell3),
-    X = Y.  % Return the row index
+% Row Check (Sliding window approach)
+check_three_in_row(Board, Player, Size) :-
+    member(Row, Board),
+    sliding_window(Row, Player, Size).
 
-% Column Check (Transpose board to check columns like rows)
-check_three_in_column(Board, Player, Size, X, Y) :-
+% Column Check (Transpose board and apply row check)
+check_three_in_column(Board, Player, Size) :-
     transpose(Board, TransposedBoard),
-    check_three_in_row(TransposedBoard, Player, Size, Y, X).
+    check_three_in_row(TransposedBoard, Player, Size).
 
-% Diagonal Check (Main and Anti-Diagonal)
-check_three_in_diagonal(Board, Player, Size, X, Y) :-
-    (   check_three_in_main_diagonal(Board, Player, Size, X, Y);
-        check_three_in_anti_diagonal(Board, Player, Size, X, Y)
-    ).
+% Diagonal Check (Main and Anti-Diagonal using sliding window)
+check_three_in_diagonal(Board, Player, Size) :-
+    check_main_diagonal(Board, Player, Size);
+    check_anti_diagonal(Board, Player, Size).
 
-% Main Diagonal Check (Fixed to correctly track cells)
-check_three_in_main_diagonal(Board, Player, Size, X, Y) :-
-    length(Board, N),
-    between(1, N, Start),
-    check_main_diagonal(Board, Start, Player, Size, X, Y).
-
-check_main_diagonal(Board, Start, Player, Size, X, Y) :-
-    nth1(Start, Board, Row1),
-    nth1(Start, Row1, Cell1),
-    Next is Start + 1,
-    nth1(Next, Board, Row2),
-    nth1(Next, Row2, Cell2),
-    Next2 is Next + 1,
-    nth1(Next2, Board, Row3),
-    nth1(Next2, Row3, Cell3),
-    member((Player, Size), Cell1),
-    member((Player, Size), Cell2),
-    member((Player, Size), Cell3),
-    X = Start,
-    Y = Start.
+% Main Diagonal Check (Sliding window over diagonals)
+check_main_diagonal(Board, Player, Size) :-
+    diagonal(Board, Diagonal),
+    sliding_window(Diagonal, Player, Size).
 
 % Anti-Diagonal Check
-check_three_in_anti_diagonal(Board, Player, Size, X, Y) :-
-    length(Board, N),
-    between(1, N, Start),
-    check_anti_diagonal(Board, Start, Player, Size, X, Y).
+check_anti_diagonal(Board, Player, Size) :-
+    anti_diagonal(Board, AntiDiagonal),
+    sliding_window(AntiDiagonal, Player, Size).
 
-check_anti_diagonal(Board, Start, Player, Size, X, Y) :-
-    nth1(Start, Board, Row1),
-    nth1(_, Row1, Cell1),
-    Next is Start + 1,
-    nth1(Next, Board, Row2),
-    nth1(_, Row2, Cell2),
-    Next2 is Next + 1,
-    nth1(Next2, Board, Row3),
-    nth1(_, Row3, Cell3),
+% Sliding window logic for sets of three
+sliding_window(List, Player, Size) :-
+    append(_, [Cell1, Cell2, Cell3 | _], List),
     member((Player, Size), Cell1),
     member((Player, Size), Cell2),
-    member((Player, Size), Cell3),
-    X = Start,
-    Y = 1.
+    member((Player, Size), Cell3).
+
+% Extract the main diagonal from the board
+diagonal(Board, Diagonal) :-
+    findall(Cell, (nth1(N, Board, Row), nth1(N, Row, Cell)), Diagonal).
+
+% Extract the anti-diagonal from the board
+anti_diagonal(Board, AntiDiagonal) :-
+    length(Board, N),
+    findall(Cell, (nth1(X, Board, Row), Y is N - X + 1, nth1(Y, Row, Cell)), AntiDiagonal).
