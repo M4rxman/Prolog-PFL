@@ -1,4 +1,4 @@
-:- module(game, [play/0]).
+:- module(game, [play/0, test_false_three_in_row/0,test_true_three_in_row/0]).
 :- use_module(library(lists)).
 :- use_module(library(clpfd)). % For transpose and other list predicates.
 :-use_module(library(between)).
@@ -104,7 +104,8 @@ ask_human_for_move(Moves, Move) :-
 initial_state(GameConfig, game_state(Board, player1, RemainingPipes)) :-
     GameConfig = game_config(_, board_size(BoardSize), _),
     create_empty_board(BoardSize, Board),
-    RemainingPipes = [player1: [small-BoardSize, medium-BoardSize, large-BoardSize], player2: [small-BoardSize, medium-BoardSize, large-BoardSize]].
+    NumberOfPipes is BoardSize + 2,
+    RemainingPipes = [player1: [small-NumberOfPipes, medium-NumberOfPipes, large-NumberOfPipes], player2: [small-NumberOfPipes, medium-NumberOfPipes, large-NumberOfPipes]].
 
 % Create an empty board
 % create_empty_board(+Size, -Board): Generates an empty NxN board.
@@ -337,7 +338,7 @@ check_victory(Board, Player) :-
     % Checks if the board is full
     % board_full(+Board): Succeeds if there are no empty cells on the board.
     board_full(Board) :-
-        \+ (member(Row, Board), member(Cell, Row), Cell = []).
+        \+ (member(Row, Board), member(Cell, Row), length(Cell, L), L < 3).
 
 % check_four_in_a_row(+Board, +Player): Checks if the player has four pipes of the same size in a row.
 check_four_in_a_row(Board, Player) :-
@@ -376,63 +377,78 @@ check_diagonals(Board, Player, Size) :-
     member((Player, Size), Cell4).
 
 % check_four_sets_of_three(+Board, +Player): Checks if the player has four sets of three in a row.
+% Check for four sets of three pipes in-a-row of the same size
 check_four_sets_of_three(Board, Player) :-
-    findall((X, Y), check_three_in_a_row(Board, Player, X, Y), Sets),
+    findall((X, Y, Size), check_three_in_a_row(Board, Player, X, Y, Size), Sets),
     length(Sets, Count),
     Count >= 4.
 
-    % check_three_in_a_row(+Board, +Player, -X, -Y): Checks if the player has three pipes of the same size in a row.
-    check_three_in_a_row(Board, Player, X, Y) :-
-        member(Size, [small, medium, large]),
-        (   check_three_in_row(Board, Player, Size, X, Y);
-            check_three_in_column(Board, Player, Size, X, Y);
-            check_three_in_diagonal(Board, Player, Size, X, Y)
-        ).
+% Check if three pipes of the same size form a row/column/diagonal
+check_three_in_a_row(Board, Player, X, Y, Size) :-
+    member(Size, [small, medium, large]),
+    (   check_three_in_row(Board, Player, Size, X, Y);
+        check_three_in_column(Board, Player, Size, X, Y);
+        check_three_in_diagonal(Board, Player, Size, X, Y)
+    ).
 
-    % Check rows for three in a row
-    check_three_in_row(Board, Player, Size, X, Y) :-
-        nth1(Y, Board, Row),
-        append(_, [Cell1, Cell2, Cell3 | _], Row),
-        member((Player, Size), Cell1),
-        member((Player, Size), Cell2),
-        member((Player, Size), Cell3),
-        nth1(X, Row, Cell1).
+% Row Check (Fix: Ensure strict size matching in consecutive cells)
+check_three_in_row(Board, Player, Size, X, Y) :-
+    nth1(Y, Board, Row),
+    append(_, [Cell1, Cell2, Cell3 | _], Row),
+    member((Player, Size), Cell1),
+    member((Player, Size), Cell2),
+    member((Player, Size), Cell3),
+    X = Y.  % Return the row index
 
-    % Check columns for three in a row
-    check_three_in_column(Board, Player, Size, X, Y) :-
-        transpose(Board, TransposedBoard),
-        check_three_in_row(TransposedBoard, Player, Size, Y, X).
+% Column Check (Transpose board to check columns like rows)
+check_three_in_column(Board, Player, Size, X, Y) :-
+    transpose(Board, TransposedBoard),
+    check_three_in_row(TransposedBoard, Player, Size, Y, X).
 
-    % Check diagonals for three in a row
-    check_three_in_diagonal(Board, Player, Size, X, Y) :-
-        (   check_three_in_main_diagonal(Board, Player, Size, X, Y);
-            check_three_in_anti_diagonal(Board, Player, Size, X, Y)
-        ).
+% Diagonal Check (Main and Anti-Diagonal)
+check_three_in_diagonal(Board, Player, Size, X, Y) :-
+    (   check_three_in_main_diagonal(Board, Player, Size, X, Y);
+        check_three_in_anti_diagonal(Board, Player, Size, X, Y)
+    ).
 
-    % Check main diagonal for three in a row
-    check_three_in_main_diagonal(Board, Player, Size, X, Y) :-
-        append(_, [Row1, Row2, Row3 | _], Board),
-        nth1(Index, Row1, Cell1),
-        NextIndex1 is Index + 1,
-        nth1(NextIndex1, Row2, Cell2),
-        NextIndex2 is NextIndex1 + 1,
-        nth1(NextIndex2, Row3, Cell3),
-        member((Player, Size), Cell1),
-        member((Player, Size), Cell2),
-        member((Player, Size), Cell3),
-        X = Index,
-        Y = 1.
+% Main Diagonal Check (Fixed to correctly track cells)
+check_three_in_main_diagonal(Board, Player, Size, X, Y) :-
+    length(Board, N),
+    between(1, N, Start),
+    check_main_diagonal(Board, Start, Player, Size, X, Y).
 
-    % Check anti-diagonal for three in a row
-    check_three_in_anti_diagonal(Board, Player, Size, X, Y) :-
-        append(_, [Row1, Row2, Row3 | _], Board),
-        nth1(Index, Row1, Cell1),
-        NextIndex1 is Index - 1,
-        nth1(NextIndex1, Row2, Cell2),
-        NextIndex2 is NextIndex1 - 1,
-        nth1(NextIndex2, Row3, Cell3),
-        member((Player, Size), Cell1),
-        member((Player, Size), Cell2),
-        member((Player, Size), Cell3),
-        X = Index,
-        Y = 1.
+check_main_diagonal(Board, Start, Player, Size, X, Y) :-
+    nth1(Start, Board, Row1),
+    nth1(Start, Row1, Cell1),
+    Next is Start + 1,
+    nth1(Next, Board, Row2),
+    nth1(Next, Row2, Cell2),
+    Next2 is Next + 1,
+    nth1(Next2, Board, Row3),
+    nth1(Next2, Row3, Cell3),
+    member((Player, Size), Cell1),
+    member((Player, Size), Cell2),
+    member((Player, Size), Cell3),
+    X = Start,
+    Y = Start.
+
+% Anti-Diagonal Check
+check_three_in_anti_diagonal(Board, Player, Size, X, Y) :-
+    length(Board, N),
+    between(1, N, Start),
+    check_anti_diagonal(Board, Start, Player, Size, X, Y).
+
+check_anti_diagonal(Board, Start, Player, Size, X, Y) :-
+    nth1(Start, Board, Row1),
+    nth1(_, Row1, Cell1),
+    Next is Start + 1,
+    nth1(Next, Board, Row2),
+    nth1(_, Row2, Cell2),
+    Next2 is Next + 1,
+    nth1(Next2, Board, Row3),
+    nth1(_, Row3, Cell3),
+    member((Player, Size), Cell1),
+    member((Player, Size), Cell2),
+    member((Player, Size), Cell3),
+    X = Start,
+    Y = 1.
