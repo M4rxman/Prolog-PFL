@@ -39,9 +39,10 @@ evaluate_move(GameState, Move, Value) :-
 
 % Verifica se haverá quatro em uma linha após um movimento
 will_have_four_in_a_row(GameState, Player, Move) :-
+    (Move = place(CurrentPlayer, Size, X, Y) -> TestMove = place(Player, Size, X, Y) ; Move = transfer(CurrentPlayer, Size, X1, Y1, X2, Y2), TestMove = transfer(Player, Size, X1, Y1, X2, Y2)),
     GameState = game_state(Board, CurrentPlayer, RemainingPipes, SetsOfThree),
     NewState = game_state(Board, Player, RemainingPipes, SetsOfThree),
-    (   move(NewState, Move, TestState)
+    (   move(NewState, TestMove, TestState)
     ->  TestState = game_state(NewBoard, _, _, _),
             check_four_in_a_row(NewBoard, Player)
         ;   false
