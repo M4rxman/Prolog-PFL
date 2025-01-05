@@ -13,13 +13,15 @@ Hugo Cruz - up202205022
 Oleksandr Aleshchenko - up202210478
 
 1. Hugo Cruz - up202205022
-    **Contribution:** 70%
+    **Contribution:** 80%
     - Designed and implemented the core game logic in Prolog, including rules for placing and moving pipes, and checking win conditions.
     - Created the text-based user interface and ensured compatibility with three game modes (Human/Human, Human/Computer, and Computer/Computer).
+    - Tested game mechanics and debugged logic errors.
+    - Revised README file.
     
 1. Oleksandr Aleshchenko - up202210478
-    **Contribution:** 30%
-       - Tested game mechanics and debugged logic errors.
+    **Contribution:** 20%
+       - Tested game mechanics
        - Wrote README file
 ---
 ## Installation and Execution
@@ -80,7 +82,7 @@ Players compete to build water pipelines on a board by placing and moving pipes 
 
 1. **Setup:**
     - The board is initially empty.
-    - Players choose their pipe colors and determine the first player by dice roll or coin toss.
+    _ Player 1 is assigned the color Red, while Player 2 is assigned the color Blue.
 2. **Gameplay:**
     
     - On their turn, a player may either:
@@ -93,6 +95,7 @@ Players compete to build water pipelines on a board by placing and moving pipes 
 4. **Game Modes:**
     - **Human vs. Human**
     - **Human vs. Computer**
+    - **Computer vs. Human**
     - **Computer vs. Computer** (with two levels of AI difficulty).
 
 ---
@@ -102,7 +105,7 @@ When extending the design of the game, several factors are considered to enhance
 
 #### Variable-Sized Boards
 
-One of the most significant extensions is ensuring the game's functionality across variable-sized boards. The initial implementation focused on a 3x3 board for simplicity in AI logic and testing. Subsequently, the design was scaled to support 4x4 boards, showcasing its potential scalability for larger board sizes.
+The game is currently implemented with a 4x4 board configuration. However, future versions will support a 3x3 board. The majority of the codebase has been designed with flexibility in mind to accommodate this modification seamlessly.
 
 **Key Considerations:**
 
@@ -133,10 +136,9 @@ The AI's current implementation follows a priority system:
 
 **Future Enhancements:**
 
-- Addressing reported issues in Level 2 AI, such as inefficiencies or incorrect prioritizations, is essential. Debugging logs and iterative testing would refine its logic.
 - Improving AI intelligence to better analyze complex board states and develop long-term strategies.
 - Ensuring AI adaptability for variable board sizes.
-
+- Correctly handle all diagonals. Not only the two main ones.
 #### Code Flexibility and Maintainability
 
 The Prolog implementation emphasizes modularity and flexibility, enabling easy modifications for additional features:
@@ -168,46 +170,56 @@ By considering these extensions, the game design can be improved and evolve into
 
 #### Game Configuration Representation
 
-The game configuration encompasses the settings that define how the game is played. The primary components of the configuration include the game type (player vs. player, player vs. computer), the board size, and the game level (difficulty). These parameters are provided by the user through a menu system.
+The game configuration encompasses the settings that define how the game is played. The primary components of the configuration include the game type (player vs. player, player vs. computer, computer vs. player, computer vs. computer), the board size, and the game level (difficulty). These parameters are provided by the user through a menu system.
 
 - **Representation**: The game configuration is represented internally as a `game_config` structure with the following fields:
     
     - `type(GameType)` — Specifies the type of game: player vs. player (`h_h`), player vs. computer (`h_pc`), etc.
     - `board_size(Size)` — Indicates the dimensions of the board, typically 4 for this version of the game.
-    - `level(Level)` — Defines the difficulty of the game (e.g., `1` for easy, `2` for medium, `3` for hard).
-- **Usage**: The configuration is passed into the `initial_state/2` predicate, which uses it to set up the initial game board and determine the rules for starting the game. This configuration is also used to adjust the behavior of the game loop, such as deciding if it's the player's or AI's turn, and determining the available moves based on the selected difficulty.
+    - `level(Level)` — Defines the difficulty of the game (e.g., `1` for random choices, `2` for greedy choice).
+- **Usage**: The configuration is passed into the `initial_state/2` predicate, which uses it to set up the initial game board and determine the rules for starting the game. This configuration is also used to adjust the behavior of the game loop, such as deciding if it's the player's or AI's turn, and determining the available moves.
 #### Internal Game State Representation
 
 The internal game state captures the current status of the game at any given point. It reflects the arrangement of pieces on the board, which players are involved, and whose turn it is.
 
-- **Representation**: The game state is represented by a structure like `game_state(Board, Turn, Player1, Player2, GameType)`.
+- **Representation**: The game state is represented by a structure like `game_state(Board, CurrentPlayer, RemainingPipes, SetsOfThree)`.
 
-    - `Board` is a list of lists (or a flat list) that represents the positions of the pieces on the board. Each position can either be empty, occupied by player 1, or occupied by player 2.
-    - `Turn` holds the identifier for the player whose turn it is (Player 1 or Player 2).
-    - `Player1` and `Player2` hold the identifiers of the two players, which could be either human or AI.
-    - `GameType` represents whether the game is between two humans or a human versus a computer.
+    - `Board` is a list of lists (or a flat list) that represents the positions of the pieces on the board. Each position can have up to three pipes, one of each size.
+    - `CurrentPlayer` identifies the player that is going to make the next move.
+    - `RemainingPipes` indicates the number of pipes of each size that players have yet to utilize.
+    - `SetsOfThree`tracks the number of sets of three pipes in a row that each player has achieved.
 - **Usage**: The internal game state is continuously updated during the game as moves are made. It is used by predicates like `game_loop/2` to manage the progression of the game. For example, after each move, the board and turn values are updated, and the current game state is passed around to ensure that the game logic reflects the latest state.
 #### Move Representation
 
-A move in this game typically involves a player selecting a position on the board to place or move a piece. The move can be represented in terms of coordinates (row, column) on the board or other relevant actions (like switching pieces for more advanced games).
+In the game, moves can involve either placing a new pipe on the board or moving a previously placed pipe. Pipes can be of three sizes: small, medium, or large. A player may move a pipe they have already placed, but only if they have previously placed at least one pipe of each size.
 
-- **Representation**: A move is represented as a tuple or a pair of integers `(Row, Column)`, which corresponds to a board location. For example, `(2, 3)` might represent the position at row 2, column 3.
-    
-- **Usage**: The `move/3` predicate uses this representation to update the game state by placing a player's piece in the selected location. It checks whether the move is valid (i.e., the cell is empty) and updates the board accordingly. The `move/3` predicate might also handle special rules, like checking for winning conditions or enforcing turn rules.
+Moves are represented using the following formats:
+
+- **Placing a new pipe:**  
+  `place(player1/player2, small/medium/large, x, y)`
+
+- **Moving an existing pipe:**  
+  `move(player1/player2, small/medium/large, x1, y1, x2, y2)`
+
+Here:
+- `(x, y)` represents the coordinates on the board where the pipe is placed.
+- `(x1, y1)` and `(x2, y2)` represent the starting and ending positions of a moved pipe.
+
+
 #### User Interaction
 
 The user interaction includes the process of reading inputs for configuring the game, validating moves, and displaying the current state of the game. The interaction with the user is mainly handled through text-based menus and prompts.
 
-- **Game Menu System**: The game begins with a menu where the user selects the type of game (player vs. player or player vs. computer) and, if applicable, the difficulty level. Input validation is performed at this stage to ensure that the user selects a valid option.
+- **Game Menu System**: The game begins with a menu where the user selects the type of game (player vs. player, player vs. computer or computer vs, computer) and, if applicable, the difficulty level. Input validation is performed at this stage to ensure that the user selects a valid option.
     
-- **Move Input**: When it's the player's turn, the game prompts for a move (coordinates). The input is validated to ensure the move is within bounds, the selected cell is empty, and the move is appropriate based on the game rules.
-    
+- **Move Input**: When it's the player's turn, the game prompts for a move. The input is validated to ensure it is within bounds, the selected cell can accommodate the move, and the action complies with the game rules, including restrictions on placing and moving pipes.
+
 - **Input Validation**: User inputs are validated to handle common errors, such as choosing an invalid game configuration or trying to place a piece in an already occupied spot. The game ensures that only valid moves are processed, and it gives feedback to the player when an invalid action is attempted.
 ---
 
 ## Conclusions
 
-This project presents a functional strategy game implemented in Prolog, where two players (both human or AI) take turns placing and transferring pipes to form sets of three in a row. It supports multiple game modes, including human vs. human, human vs. AI, and AI vs. AI. The game also features a basic AI with two difficulty levels: random and greedy.
+This project presents a functional strategy game implemented in Prolog, where two players (both human or AI) take turns placing and transferring pipes to form sets of three in a row or one set of four in a row. It supports multiple game modes, including human vs. human, human vs. AI, and AI vs. AI. The game also features a basic AI with two difficulty levels: random and greedy.
 
 #### Key Points:
 
@@ -219,7 +231,7 @@ This project presents a functional strategy game implemented in Prolog, where tw
 1. **AI**: The AI is not overly strategic and may not always offer a challenging experience.
 2. **Board Size**: Limited to a 4x4 board, reducing gameplay depth, yet it is expandable by design.
 3. **Move Validation**: There could be edge cases not handled perfectly.
-4. **User Interface**: The text-based interface is functional but not especially user-friendly.
+4. **User Interface**: The text-based interface is functional but a graphic interface would be more appealing.
 
 ### Improvements:
 
