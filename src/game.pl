@@ -12,7 +12,7 @@
 play :-
     display_menu,
     read_config(GameConfig),
-    GameConfig = game_config(type(GameType), board_size(4), level(Level)),
+    GameConfig = game_config(_, board_size(4),_),
     initial_state(GameConfig, GameState),
     game_loop(GameState, GameConfig).
 
@@ -81,27 +81,27 @@ game_loop(GameState, GameConfig) :-
 
 % move(+GameState, +Move, -NewGameState): Validates and executes a move where user places a new pipe, updating the game state.
 move(GameState, place(Player, Size, X, Y), NewGameState) :-
-    GameState = game_state(Board, CurrentPlayer, RemainingPipes,SetsOfThree),
+    GameState = game_state(Board, CurrentPlayer, RemainingPipes,_),
     CurrentPlayer = Player,
     % Validate the move
     within_board(X, Y, Board),
     valid_placement(Board, X, Y,Size),
     place_pipe(Board, X, Y, (Player, Size), NewBoard),
     update_pipes(RemainingPipes, Player, Size, UpdatedPipes),
-    update_sets_of_three(SetsOfThree, NewBoard , UpdatedSetsOfThree),
+    update_sets_of_three( NewBoard , UpdatedSetsOfThree),
     switch_player(Player, NextPlayer),
     NewGameState = game_state(NewBoard, NextPlayer, UpdatedPipes, UpdatedSetsOfThree).
 
 % move(+GameState, +Move, -NewGameState): Validates and executes a move where the user transfers a pipe to a new position, updating the game state.
 move(GameState,  transfer(Player, Size, FromX, FromY, ToX, ToY), NewGameState) :-
-    GameState = game_state(Board, CurrentPlayer, RemainingPipes,SetsOfThree),
+    GameState = game_state(Board, CurrentPlayer, RemainingPipes,_),
     CurrentPlayer = Player,
     % Validate the move
     within_board(FromX, FromY, Board),
     within_board(ToX, ToY, Board),
     valid_transfer(Board,CurrentPlayer, FromX, FromY, ToX, ToY, Size),
     transfer_pipe(Board, FromX, FromY, ToX, ToY, (Player, Size), NewBoard),
-    update_sets_of_three(SetsOfThree, NewBoard, UpdatedSetsOfThree),
+    update_sets_of_three( NewBoard, UpdatedSetsOfThree),
     switch_player(Player, NextPlayer),
     NewGameState = game_state(NewBoard, NextPlayer, RemainingPipes,UpdatedSetsOfThree).
 
@@ -221,6 +221,7 @@ choose_move(GameState, Level, Move) :-
 ask_human_for_move(GameState, Move) :-
     valid_moves(GameState, Moves),
     repeat,
+    write('Example move: place(player1,small,X,Y) / transfer(player1,small,X1,Y1,X2,Y2).'),nl,nl,
     write('Choose your move:'), nl,
     read(Move),
     (   member(Move, Moves)
@@ -313,8 +314,8 @@ check_diagonals(Board, Player, Size) :-
 
 
 
-% update_sets_of_three(+Board, +SetsOfThree, -UpdatedSetsOfThree): Updates the count of sets of three for both players, after a move
-update_sets_of_three(SetsOfThree, Board, UpdatedSetsOfThree) :-
+% update_sets_of_three(+Board, -UpdatedSetsOfThree): Updates the count of sets of three for both players, after a move
+update_sets_of_three(Board, UpdatedSetsOfThree) :-
     count_sets_of_three(Board, player1, Count1),
     count_sets_of_three(Board, player2, Count2),
     UpdatedSetsOfThree = [player1-Count1, player2-Count2].

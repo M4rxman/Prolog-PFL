@@ -5,7 +5,8 @@ best_move(_, [],AllMoves, BestValueSoFar, BestMoveSoFar, BestMove) :-
     ->  random_member(BestMove, AllMoves)  % Em caso de empate, joga aleatoriamente
     ;   BestMove = BestMoveSoFar
     ),
-    write('Selected Best Move: '), write(BestMove), nl.
+    nl,nl,
+    write('Selected Move: '), write(BestMove), nl.
 
 % Caso recursivo: Avalia cada jogada e escolhe a melhor
 best_move(GameState, [Move | Rest],AllMoves, BestValueSoFar, BestMoveSoFar, BestMove) :-
