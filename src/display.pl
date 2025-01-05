@@ -24,25 +24,26 @@ display_menu :-
 
 % display_game(+GameState): Displays the current game state, including the board, remaining pipes, sets of three, and the current player's turn.
 display_game(game_state(Board, CurrentPlayer, RemainingPipes, SetsOfThree)) :-
-    % Extract remaining pipes for each player
-    member(player1:Pipes1, RemainingPipes),
-    member(player2:Pipes2, RemainingPipes),
-    % Display remaining pipes for each player
-    format('Player 1 remaining pipes: ~w~n', [Pipes1]),
-    format('Player 2 remaining pipes: ~w~n', [Pipes2]),
-    nl, write('Current Board:'), nl,
-    % Get the size of the board and print it
-    length(Board, Size),
-    print_board(Board, Size),
+    nl,
     % Extract sets of three for each player
     member(player1-Sets1, SetsOfThree),
     member(player2-Sets2, SetsOfThree),
     % Display sets of three for each player
     format('Player 1 sets of three: ~w~n', [Sets1]),
     format('Player 2 sets of three: ~w~n', [Sets2]),
-    nl,nl,nl,
+    nl, write('Current Board:'), nl,
+    % Get the size of the board and print it
+    length(Board, Size),
+    print_board(Board, Size),
+    nl,nl,
+    % Extract remaining pipes for each player
+    member(player1:Pipes1, RemainingPipes),
+    member(player2:Pipes2, RemainingPipes),
+    % Display remaining pipes for each player
+    format('Player 1 remaining pipes: ~w~n', [Pipes1]),
+    format('Player 2 remaining pipes: ~w~n', [Pipes2]),nl,nl,
     % Display the current player's turn
-    format(' ~w\'s turn.~n', [CurrentPlayer]).
+    format(' ~w\'s turn.~n', [CurrentPlayer]),nl,nl.
 
 % print_board(+Board, +Size): Prints the board with coordinates.
 print_board(Board, Size) :-
