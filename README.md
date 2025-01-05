@@ -19,10 +19,10 @@ Oleksandr Aleshchenko - up202210478
     - Tested game mechanics and debugged logic errors.
     - Revised README file.
     
-1. Oleksandr Aleshchenko - up202210478
+2. Oleksandr Aleshchenko - up202210478
     **Contribution:** 20%
-       - Tested game mechanics
-       - Wrote README file
+    - Tested game mechanics.
+    - Wrote README file.
 ---
 ## Installation and Execution
 
